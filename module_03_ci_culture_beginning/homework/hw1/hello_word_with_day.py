@@ -15,6 +15,11 @@ GREETINGS = (
 )
 
 
+def get_weekday_greeting() -> str:
+    weekday: int = datetime.today().weekday()
+    return GREETINGS[weekday]
+
+
 @app.route('/hello-world/<name>')
 def hello_world(name: str) -> str:
     weekday: int = datetime.today().weekday()
