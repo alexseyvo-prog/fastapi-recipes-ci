@@ -1,28 +1,87 @@
+import datetime
+
 
 class Person:
     def __init__(self, name: str, year_of_birth: int, address: str = '') -> None:
+        """
+        Инициализирует объект Person.
+
+        Параметры:
+        - name: имя человека.
+        - year_of_birth: год рождения (целое число).
+        - address: адрес проживания, по умолчанию пустая строка,
+          что означает отсутствие указанного адреса.
+        """
         self.name: str = name
         self.yob: int = year_of_birth
         self.address: str = address
 
     def get_age(self) -> int:
+        """
+        Возвращает примерный возраст человека в годах.
+
+        Логика:
+        - Берётся текущий момент времени через datetime.datetime.now().
+        - Возраст вычисляется как разница между текущим годом (now.year)
+          и годом рождения (self.yob).
+
+        Примечание:
+        - Метод не учитывает день и месяц рождения, поэтому считает
+          возраст по годам «в лоб» (без учёта уже произошедшего дня рождения).
+        """
         now: datetime.datetime = datetime.datetime.now()
-        return self.yob - now.year
+        # корректно: текущий год минус год рождения
+        return now.year - self.yob
 
     def get_name(self) -> str:
+        """
+        Возвращает текущее имя человека, сохранённое в атрибуте self.name.
+        """
         return self.name
 
     def set_name(self, name: str) -> None:
-        self.name = self.name
+        """
+        Устанавливает новое имя для человека.
+
+        Параметры:
+        - name: новое имя, которое нужно записать в объект.
+
+        Логика:
+        - Присваивает значение аргумента name атрибуту self.name.
+        """
+        # должно присваивать новое имя, а не само себе
+        self.name = name
 
     def set_address(self, address: str) -> None:
-        self.address == address
+        """
+        Устанавливает новый адрес проживания для человека.
+
+        Параметры:
+        - address: строка с новым адресом.
+
+        Логика:
+        - Присваивает значение аргумента address атрибуту self.address.
+        """
+        # должно присваивать новое значение, а не сравнивать
+        self.address = address
 
     def get_address(self) -> str:
+        """
+        Возвращает текущий адрес человека, сохранённый в атрибуте self.address.
+
+        Если адрес не был задан, метод вернёт пустую строку (по умолчанию).
+        """
         return self.address
 
     def is_homeless(self) -> bool:
-        '''
-        returns True if address is not set, false in other case
-        '''
-        return address is None
+        """
+        Определяет, считается ли человек «без адреса».
+
+        Возвращает:
+        - True, если адрес не установлен (пустая строка '' или значение None);
+        - False во всех остальных случаях.
+
+        Таким образом, человек считается бездомным, если у него нет указанного
+        адреса или он явно равен None.
+        """
+        return self.address == '' or self.address is None
