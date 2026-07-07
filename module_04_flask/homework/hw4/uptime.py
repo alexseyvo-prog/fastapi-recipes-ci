@@ -1,19 +1,20 @@
-"""
-Напишите GET-эндпоинт /uptime, который в ответ на запрос будет выводить строку вида f"Current uptime is {UPTIME}",
-где UPTIME — uptime системы (показатель того, как долго текущая система не перезагружалась).
+# uptime.py
 
-Сделать это можно с помощью команды uptime.
-"""
-
+import os
 from flask import Flask
 
 app = Flask(__name__)
 
 
-@app.route("/uptime", methods=['GET'])
+@app.route("/uptime", methods=["GET"])
 def uptime() -> str:
-    ...
+    raw = os.popen("uptime -p").read().strip()
+    prefix = "up "
+    uptime_str = raw[len(prefix):] if raw.startswith(prefix) else raw
+    return f"Current uptime is {uptime_str}"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    # ВАЖНО: app.run вызывается только при запуске файла напрямую,
+    # а НЕ при импорте (когда pytest делает `from uptime import app`)
     app.run(debug=True)
