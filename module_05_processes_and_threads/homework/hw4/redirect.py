@@ -8,6 +8,7 @@
 """
 
 import sys
+import traceback
 from types import TracebackType
 from typing import Type, Literal, IO, Optional
 
@@ -24,7 +25,8 @@ class Redirect:
             print("Это уйдёт в stdout.txt")
             raise Exception("Это уйдёт в stderr.txt")
 
-    После выхода из блока with sys.stdout и sys.stderr будут восстановлены.
+    После выхода из блока with sys.stdout и sys.stderr будут восстановлены,
+    а трейсбек исключения внутри блока будет записан в stderr_file и подавлен.
     """
 
     def __init__(self, *, stdout: Optional[IO] = None, stderr: Optional[IO] = None) -> None:
@@ -70,17 +72,33 @@ class Redirect:
     ) -> Literal[True] | None:
         """
         Восстанавливает исходные значения sys.stdout и sys.stderr.
+        Если внутри блока with произошло исключение, записывает полный трейсбек
+        в текущий sys.stderr (перенаправленный поток) и подавляет исключение.
 
         :param exc_type: тип исключения (если оно возникло внутри with) или None
         :param exc_val: экземпляр исключения или None
         :param exc_tb: traceback или None
-        :return: None — исключения не подавляются и прокидываются дальше.
+        :return:
+            - True  — если было исключение и оно записано в stderr (подавляем его).
+            - None  — если исключения не было, ничего не подавляем.
         """
-        # Восстанавливаем именно сохранённые значения, чтобы корректно работали вложенные блоки.
+        # Если было исключение, выводим его трейсбек в текущий sys.stderr
+        if exc_type is not None:
+            # traceback.format_exception возвращает список строк с трейсбеком.[web:443]
+            tb_text = "".join(traceback.format_exception(exc_type, exc_val, exc_tb))
+            # Пишем в текущий sys.stderr (сейчас он указывает на файл/IO, переданный в Redirect)
+            sys.stderr.write(tb_text)
+            sys.stderr.flush()
+
+        # Восстанавливаем исходные значения потоков (важно для вложенных блоков).[web:440]
         if self._old_stdout is not None:
             sys.stdout = self._old_stdout  # type: ignore[assignment]
         if self._old_stderr is not None:
             sys.stderr = self._old_stderr  # type: ignore[assignment]
 
-        # Исключения не подавляем
+        # Если было исключение — мы его уже записали в файл и хотим подавить.
+        if exc_type is not None:
+            return True
+
+        # Исключения не было — ничего подавлять не нужно.
         return None

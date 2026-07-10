@@ -76,6 +76,25 @@ class TestRedirect(unittest.TestCase):
         inner_text = inner_buf.getvalue().splitlines()
         self.assertEqual(inner_text, ["inner"])
 
+    def test_exception_inside_redirect_is_logged_and_suppressed(self):
+        """
+        Проверяем, что исключение, возникшее внутри блока Redirect,
+        записывается в stderr и не прокидывается выше.
+        Важно: этот тест зависит от реализации __exit__, которая
+        сама формирует трейсбек и возвращает True.
+        """
+        stderr_buf = io.StringIO()
+
+        # Исключение внутри with не должно выйти наружу (никакого assertRaises)
+        with Redirect(stderr=stderr_buf):
+            # это исключение должен обработать и подавить Redirect.__exit__
+            raise RuntimeError("inner error")
+
+        # Здесь код продолжится — исключение подавлено.
+        text = stderr_buf.getvalue()
+        self.assertIn("inner error", text)
+        self.assertIn("Traceback", text)
+
 
 if __name__ == '__main__':
     unittest.main()
