@@ -1,9 +1,100 @@
+import io
+import sys
+import traceback
 import unittest
+
 from redirect import Redirect
+
+
+class TestRedirect(unittest.TestCase):
+    def test_redirect_stdout(self):
+        """Проверяем, что stdout перенаправляется в заданный поток."""
+        buffer = io.StringIO()
+        original_stdout = sys.stdout
+
+        with Redirect(stdout=buffer):
+            print("Hello stdout.txt")
+
+        # stdout должен быть восстановлен
+        self.assertIs(sys.stdout, original_stdout)
+        # В буфере должно быть то, что мы печатали
+        self.assertEqual(buffer.getvalue().strip(), "Hello stdout.txt")
+
+    def test_redirect_stderr(self):
+        """Проверяем, что stderr перенаправляется в заданный поток."""
+        buffer = io.StringIO()
+        original_stderr = sys.stderr
+
+        with Redirect(stderr=buffer):
+            try:
+                raise Exception("Hello stderr.txt")
+            except Exception:
+                # Явно выводим трейсбек в текущий sys.stderr (буфер)
+                traceback.print_exc()
+
+        # stderr должен быть восстановлен
+        self.assertIs(sys.stderr, original_stderr)
+        # В буфере должен быть текст исключения
+        text = buffer.getvalue()
+        self.assertIn("Hello stderr.txt", text)
+        self.assertIn("Traceback", text)
+
+    def test_redirect_both_streams(self):
+        """Проверяем одновременное перенаправление stdout и stderr."""
+        stdout_buf = io.StringIO()
+        stderr_buf = io.StringIO()
+
+        with Redirect(stdout=stdout_buf, stderr=stderr_buf):
+            print("to stdout")
+            # Пишем в stderr напрямую
+            print("to stderr", file=sys.stderr)
+
+        self.assertIn("to stdout", stdout_buf.getvalue())
+        self.assertIn("to stderr", stderr_buf.getvalue())
+
+    def test_nested_redirects(self):
+        """Проверяем корректную работу вложенных Redirect-блоков."""
+        outer_buf = io.StringIO()
+        inner_buf = io.StringIO()
+
+        original_stdout = sys.stdout
+
+        with Redirect(stdout=outer_buf):
+            print("outer-1")
+            with Redirect(stdout=inner_buf):
+                print("inner")
+            print("outer-2")
+
+        # stdout восстановлен
+        self.assertIs(sys.stdout, original_stdout)
+
+        # Внешний буфер получил outer-строки, но не inner
+        outer_text = outer_buf.getvalue().splitlines()
+        self.assertEqual(outer_text, ["outer-1", "outer-2"])
+
+        # Внутренний буфер получил только inner
+        inner_text = inner_buf.getvalue().splitlines()
+        self.assertEqual(inner_text, ["inner"])
+
+    def test_exception_inside_redirect_is_logged_and_suppressed(self):
+        """
+        Проверяем, что исключение, возникшее внутри блока Redirect,
+        записывается в stderr и не прокидывается выше.
+        Важно: этот тест зависит от реализации __exit__, которая
+        сама формирует трейсбек и возвращает True.
+        """
+        stderr_buf = io.StringIO()
+
+        # Исключение внутри with не должно выйти наружу (никакого assertRaises)
+        with Redirect(stderr=stderr_buf):
+            # это исключение должен обработать и подавить Redirect.__exit__
+            raise RuntimeError("inner error")
+
+        # Здесь код продолжится — исключение подавлено.
+        text = stderr_buf.getvalue()
+        self.assertIn("inner error", text)
+        self.assertIn("Traceback", text)
 
 
 if __name__ == '__main__':
     unittest.main()
-    # with open('test_results.txt', 'a') as test_file_stream:
-    #     runner = unittest.TextTestRunner(stream=test_file_stream)
-    #     unittest.main(testRunner=runner)
