@@ -1,0 +1,16 @@
+<--""
+   Level WARNING
+   |
+   o   "app"
+   |   Level DEBUG
+   |   Propagate OFF
+   |   Handler Stream <_io.TextIOWrapper name='<stdout>' mode='w' encoding='utf-8'>
+   |     Level DEBUG
+   |     Formatter fmt='%(levelname)s | %(name)s | %(asctime)s | %(lineno)d | %(message)s' datefmt=None
+   |
+   o   "utils"
+       Level INFO
+       Propagate OFF
+       Handler TimedRotatingFile 'C:\\Users\\Администратор\\Desktop\\PY\\M3\\python_advanced\\module_07_logging_part_2\\homework\\hw6_logging_tree\\utils.log' when='H' interval=3600 backupCount=10
+         Level INFO
+         Formatter fmt='%(levelname)s | %(name)s | %(asctime)s | %(lineno)d | %(message)s' datefmt=None
