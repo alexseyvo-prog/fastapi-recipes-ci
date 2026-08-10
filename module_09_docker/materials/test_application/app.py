@@ -5,7 +5,7 @@ from flask import Flask, jsonify, make_response
 
 APP = Flask(__name__)
 HOST = '0.0.0.0'
-PORT = 5000
+PORT = 5050
 SERVICE_NAME = os.environ.get('SERVICE_NAME', 'application')
 
 

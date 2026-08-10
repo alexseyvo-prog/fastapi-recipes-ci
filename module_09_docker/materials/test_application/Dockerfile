@@ -1,13 +1,12 @@
-FROM test_app
-
-RUN mkdir /app.py
-
-COPY requirements.txt /app/
-
-RUN python -m pip install -r /app.py/requirements.txt
-
-COPY app.py /app/
+FROM python:3.10-slim
 
 WORKDIR /app
 
-ENTRYPOINT ["python", "app.py"]
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 5050
+
+CMD ["python", "app.py"]
