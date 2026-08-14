@@ -20,11 +20,16 @@ def fun2():
         time.sleep(0.25)
 
 
-t1: Thread = Thread(target=fun1)
-t2: Thread = Thread(target=fun2)
+t1: Thread = Thread(target=fun1, daemon=True)
+t2: Thread = Thread(target=fun2, daemon=True)
+
+t1.start()
+t2.start()
+
 try:
-    t1.start()
-    t2.start()
+    # Вместо бесконечного join() используем цикл
+    # с проверкой состояния потоков.
+    while t1.is_alive() or t2.is_alive():
+        time.sleep(0.1)
 except KeyboardInterrupt:
-    print('\nReceived keyboard interrupt, quitting threads.')
-    exit(1)
+    print("\nReceived keyboard interrupt, quitting threads.")
