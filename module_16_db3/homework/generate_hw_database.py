@@ -95,7 +95,7 @@ cities = """
 
 def prepare_tables():
     if __name__ == "__main__":
-        with sqlite3.connect("hw.db") as conn:
+        with sqlite3.connect("hw2/hw.db") as conn:
 
             cursor = conn.cursor()
             cursor.executescript(CREATE_TABLES)
