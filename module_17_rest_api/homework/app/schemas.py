@@ -19,16 +19,21 @@ class AuthorSchema(Schema):
 
 class BookSchema(Schema):
     id = fields.Int(dump_only=True)
+
     title = fields.Str(required=True)
 
     author_id = fields.Int(
         required=False,
         load_only=True,
+        load_default=None,
+        allow_none=True,
     )
 
     author = fields.Nested(
         AuthorSchema,
         required=False,
+        allow_none=True,
+        load_default=None,
     )
 
     @post_load

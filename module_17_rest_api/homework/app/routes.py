@@ -202,12 +202,12 @@ class AuthorResource(Resource):
         }, 200
 
 
-api.add_resource(BookList, '/api/books')
+api.add_resource(BookList, '/api/books/')
 api.add_resource(BookResource, '/api/books/<int:book_id>')
 
 api.add_resource(
     AuthorResource,
-    '/api/authors',
+    '/api/authors/',
     '/api/authors/<int:author_id>',
 )
 
