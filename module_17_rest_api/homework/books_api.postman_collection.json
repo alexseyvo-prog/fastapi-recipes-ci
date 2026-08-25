@@ -1,0 +1,458 @@
+{
+  "info": {
+    "_postman_id": "f6b0e2d5-2a0b-4a9f-9b6b-5c15a2f6e901",
+    "name": "Books and Authors API",
+    "description": "Проверка REST API книг и авторов",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:5000"
+    },
+    {
+      "key": "book_id",
+      "value": "4"
+    },
+    {
+      "key": "author_id",
+      "value": "1"
+    },
+    {
+      "key": "created_author_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Книги",
+      "item": [
+        {
+          "name": "Получить все книги",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/books"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Статус ответа — 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Ответ является массивом', function () {",
+                  "    pm.expect(pm.response.json()).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Создать книгу с существующим автором",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman Test Book {{$timestamp}}\",\n  \"author_id\": {{author_id}}\n}"
+            },
+            "url": "{{base_url}}/api/books"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Статус ответа — 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "",
+                  "pm.test('В ответе есть id книги', function () {",
+                  "    pm.expect(json).to.have.property('id');",
+                  "});",
+                  "",
+                  "pm.test('В ответе есть автор', function () {",
+                  "    pm.expect(json).to.have.property('author');",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('book_id', json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Создать книгу вместе с автором",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Book With New Author {{$timestamp}}\",\n  \"author\": {\n    \"first_name\": \"Alexander\",\n    \"last_name\": \"Pushkin\",\n    \"middle_name\": \"Sergeevich\"\n  }\n}"
+            },
+            "url": "{{base_url}}/api/books"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Статус ответа — 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "",
+                  "pm.test('Книга создана', function () {",
+                  "    pm.expect(json).to.have.property('id');",
+                  "});",
+                  "",
+                  "pm.test('Автор создан и возвращён', function () {",
+                  "    pm.expect(json.author).to.be.an('object');",
+                  "    pm.expect(json.author).to.have.property('id');",
+                  "});",
+                  "",
+                  "if (json.author && json.author.id) {",
+                  "    pm.collectionVariables.set('created_author_id', json.author.id);",
+                  "}",
+                  "",
+                  "if (json.id) {",
+                  "    pm.collectionVariables.set('book_id', json.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Получить книгу по ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/books/{{book_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Статус ответа — 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "",
+                  "pm.test('У книги правильный id', function () {",
+                  "    pm.expect(json.id).to.eql(Number(pm.collectionVariables.get('book_id')));",
+                  "});",
+                  "",
+                  "pm.test('У книги есть автор', function () {",
+                  "    pm.expect(json).to.have.property('author');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Изменить книгу",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Postman Book {{$timestamp}}\",\n  \"author_id\": {{author_id}}\n}"
+            },
+            "url": "{{base_url}}/api/books/{{book_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Статус ответа — 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "",
+                  "pm.test('Название книги изменено', function () {",
+                  "    pm.expect(json.title).to.include('Updated Postman Book');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Проверка несуществующего автора",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Book With Wrong Author\",\n  \"author_id\": 999999\n}"
+            },
+            "url": "{{base_url}}/api/books/{{book_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Статус ответа — 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Проверка несуществующей книги",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/books/999999"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Статус ответа — 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Удалить книгу",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/books/{{book_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Статус ответа — 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "",
+                  "pm.test('Есть сообщение об удалении', function () {",
+                  "    pm.expect(json).to.have.property('message');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Проверить удалённую книгу",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/books/{{book_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Статус ответа — 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Авторы",
+      "item": [
+        {
+          "name": "Создать автора",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Test\",\n  \"last_name\": \"Author {{$timestamp}}\",\n  \"middle_name\": \"Middle\"\n}"
+            },
+            "url": "{{base_url}}/api/authors"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Статус ответа — 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "",
+                  "pm.test('Автор получил id', function () {",
+                  "    pm.expect(json).to.have.property('id');",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('created_author_id', json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Получить автора и его книги",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/authors/{{created_author_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Статус ответа — 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "",
+                  "pm.test('В ответе есть автор', function () {",
+                  "    pm.expect(json).to.have.property('author');",
+                  "});",
+                  "",
+                  "pm.test('В ответе есть список книг', function () {",
+                  "    pm.expect(json.books).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Проверить несуществующего автора",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/authors/999999"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Статус ответа — 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Удалить автора",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/authors/{{created_author_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Статус ответа — 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "",
+                  "pm.test('Есть сообщение об удалении', function () {",
+                  "    pm.expect(json).to.have.property('message');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Проверить удалённого автора",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/authors/{{created_author_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Статус ответа — 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
