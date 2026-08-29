@@ -6,7 +6,8 @@
 import sqlite3
 from pathlib import Path
 
-db_path = Path(r"C:\Users\Администратор\Desktop\PY\M3\python_advanced\module_19_db4\homework.db")
+# Вычисляем путь относительно текущего файла (2 уровня вверх до корня репозитория)
+db_path = Path(__file__).resolve().parents[2] / "homework.db"
 
 
 if not db_path.exists():
