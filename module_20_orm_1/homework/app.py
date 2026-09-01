@@ -2,10 +2,10 @@
 from flask import Flask, request, Response
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from datetime import date
+from datetime import datetime, timedelta
 import json
 
-from models import Base, Student, Book, ReceivingBook
+from models import Base, Author, Book, Student, ReceivingBook
 
 app = Flask(__name__)
 
@@ -20,7 +20,8 @@ def json_response(data, status=200):
 
 
 # Подключение к БД
-engine = create_engine('sqlite:///library.db')
+db_path = 'library.db'
+engine = create_engine(f'sqlite:///{db_path}')
 Session = sessionmaker(bind=engine)
 session = Session()
 
@@ -31,57 +32,33 @@ def get_all_books():
     books = session.query(Book).all()
     return json_response([
         {
-            'book_id': book.book_id,
-            'title': book.title,
-            'author': book.author,
-            'year': book.year,
+            'id': book.id,
+            'name': book.name,
+            'count': book.count,
+            'release_date': book.release_date.isoformat() if book.release_date else None,
+            'author_id': book.author_id,
         }
         for book in books
     ])
-
-
-@app.route('/api/books', methods=['POST'])
-def add_book():
-    """Добавить новую книгу."""
-    data = request.get_json()
-
-    if not data or 'title' not in data or 'author' not in data:
-        return json_response({'error': 'title и author обязательны'}, 400)
-
-    book = Book(
-        title=data['title'],
-        author=data['author'],
-        year=data.get('year'),
-    )
-
-    session.add(book)
-    session.commit()
-
-    return json_response({
-        'book_id': book.book_id,
-        'title': book.title,
-        'author': book.author,
-        'year': book.year,
-    }, 201)
 
 
 @app.route('/api/debtors', methods=['GET'])
 def get_debtors():
     """Получение списка должников (книга > 14 дней)."""
     debtors = session.query(ReceivingBook).filter(
-        ReceivingBook.date_return.is_(None),
+        ReceivingBook.date_of_return.is_(None),
     ).all()
 
     result = []
     for record in debtors:
         if record.count_date_with_book > 14:
-            student = session.query(Student).filter_by(student_id=record.student_id).first()
-            book = session.query(Book).filter_by(book_id=record.book_id).first()
+            student = session.query(Student).filter_by(id=record.student_id).first()
+            book = session.query(Book).filter_by(id=record.book_id).first()
             result.append({
-                'student_id': student.student_id,
-                'student_name': student.name,
-                'book_id': book.book_id,
-                'book_title': book.title,
+                'student_id': student.id,
+                'student_name': f'{student.surname} {student.name}',
+                'book_id': book.id,
+                'book_name': book.name,
                 'days_held': record.count_date_with_book,
             })
 
@@ -99,26 +76,33 @@ def give_book():
     student_id = data['student_id']
     book_id = data['book_id']
 
-    student = session.query(Student).filter_by(student_id=student_id).first()
+    student = session.query(Student).filter_by(id=student_id).first()
     if not student:
         return json_response({'error': f'Студент с id {student_id} не найден'}, 404)
 
-    book = session.query(Book).filter_by(book_id=book_id).first()
+    book = session.query(Book).filter_by(id=book_id).first()
     if not book:
         return json_response({'error': f'Книга с id {book_id} не найдена'}, 404)
+
+    # Проверка количества экземпляров
+    if book.count <= 0:
+        return json_response({'error': 'Все экземпляры книги уже выданы'}, 409)
 
     receiving = ReceivingBook(
         student_id=student_id,
         book_id=book_id,
-        date_get=date.today(),
-        date_return=None,
+        date_of_issue=datetime.now(),
+        date_of_return=None,
     )
+
+    # Уменьшаем количество доступных экземпляров
+    book.count -= 1
 
     session.add(receiving)
     session.commit()
 
     return json_response({
-        'message': f'Книга "{book.title}" выдана студенту {student.name}',
+        'message': f'Книга "{book.name}" выдана студенту {student.surname} {student.name}',
         'id': receiving.id,
     }, 201)
 
@@ -137,7 +121,7 @@ def return_book():
     receiving = session.query(ReceivingBook).filter(
         ReceivingBook.student_id == student_id,
         ReceivingBook.book_id == book_id,
-        ReceivingBook.date_return.is_(None),
+        ReceivingBook.date_of_return.is_(None),
     ).first()
 
     if not receiving:
@@ -145,14 +129,19 @@ def return_book():
             'error': 'Такая связка студент-книга не найдена или книга уже сдана'
         }, 404)
 
-    receiving.date_return = date.today()
+    receiving.date_of_return = datetime.now()
+
+    # Увеличиваем количество доступных экземпляров
+    book = session.query(Book).filter_by(id=book_id).first()
+    book.count += 1
+
+    # Получаем студента для сообщения
+    student = session.query(Student).filter_by(id=student_id).first()
+
     session.commit()
 
-    book = session.query(Book).filter_by(book_id=book_id).first()
-    student = session.query(Student).filter_by(student_id=student_id).first()
-
     return json_response({
-        'message': f'Книга "{book.title}" возвращена студентом {student.name}',
+        'message': f'Книга "{book.name}" возвращена студентом {student.surname} {student.name}',
         'days_held': receiving.count_date_with_book,
     })
 
@@ -166,15 +155,16 @@ def search_books():
         return json_response({'error': 'Параметр q обязателен'}, 400)
 
     books = session.query(Book).filter(
-        Book.title.ilike(f'%{query}%')
+        Book.name.ilike(f'%{query}%')
     ).all()
 
     return json_response([
         {
-            'book_id': book.book_id,
-            'title': book.title,
-            'author': book.author,
-            'year': book.year,
+            'id': book.id,
+            'name': book.name,
+            'count': book.count,
+            'release_date': book.release_date.isoformat() if book.release_date else None,
+            'author_id': book.author_id,
         }
         for book in books
     ])
@@ -187,31 +177,38 @@ def get_students_with_dormitory():
 
     return json_response([
         {
-            'student_id': s.student_id,
+            'id': s.id,
             'name': s.name,
+            'surname': s.surname,
+            'phone': s.phone,
+            'email': s.email,
+            'average_score': s.average_score,
+            'scholarship': s.scholarship,
             'dormitory': s.dormitory,
-            'gpa': s.gpa,
         }
         for s in students
     ])
 
 
-@app.route('/api/students/high-gpa', methods=['GET'])
-def get_high_gpa_students():
+@app.route('/api/students/high-score', methods=['GET'])
+def get_high_score_students():
     """Получить студентов со средним баллом выше указанного."""
-    gpa_threshold = request.args.get('gpa', type=float)
+    score_threshold = request.args.get('score', type=float)
 
-    if gpa_threshold is None:
-        return json_response({'error': 'Параметр gpa обязателен'}, 400)
+    if score_threshold is None:
+        return json_response({'error': 'Параметр score обязателен'}, 400)
 
-    students = Student.with_gpa_above(session, gpa_threshold)
+    students = Student.with_average_score_above(session, score_threshold)
 
     return json_response([
         {
-            'student_id': s.student_id,
+            'id': s.id,
             'name': s.name,
-            'dormitory': s.dormitory,
-            'gpa': s.gpa,
+            'surname': s.surname,
+            'phone': s.phone,
+            'email': s.email,
+            'average_score': s.average_score,
+            'scholarship': s.scholarship,
         }
         for s in students
     ])
