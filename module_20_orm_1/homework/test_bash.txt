@@ -1,0 +1,24 @@
+# Все книги
+curl http://127.0.0.1:5000/api/books
+
+# Выдать книгу
+curl -X POST http://127.0.0.1:5000/api/give \
+  -H "Content-Type: application/json" \
+  -d '{"student_id": 1, "book_id": 1}'
+
+# Сдать книгу
+curl -X POST http://127.0.0.1:5000/api/return \
+  -H "Content-Type: application/json" \
+  -d '{"student_id": 1, "book_id": 1}'
+
+# Должники
+curl http://127.0.0.1:5000/api/debtors
+
+# Поиск книг
+curl "http://127.0.0.1:5000/api/search?q=мир"
+
+# Студенты с общежитием
+curl http://127.0.0.1:5000/api/students/dormitory
+
+# Студенты с высоким баллом
+curl "http://127.0.0.1:5000/api/students/high-score?score=4.0"
