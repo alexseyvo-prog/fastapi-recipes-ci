@@ -1,0 +1,6 @@
+name;surname;phone;email;average_score;scholarship
+Валера;Иванов;+7(900)-111-22-33;ivanov@test.com;4.5;true
+Стас;Петров;+7(901)-444-55-66;petrov@test.com;3.8;false
+Игор;Сидоров;+7(902)-777-88-99;sidorov@test.com;4.9;true
+Игорек;Сидоровка;+79027778899;sidorov@test.com;4.9;true
+Стасbr;Петровrby;+79014445596;petrovrf@test.com;3.8;false
