@@ -1,0 +1,4 @@
+name;surname;phone;email;average_score;scholarship
+Анна;Смирнова;+79001112233;smirnova@test.com;4.8;true
+Борис;Кузнецов;+79004445566;kuznetsov@test.com;3.5;false
+Виктория;Попова;+79007778899;popova@test.com;4.2;true
