@@ -2,7 +2,9 @@
 В этом файле будут Celery-задачи
 """
 import time
-from typing import List
+import zipfile
+from pathlib import Path
+from typing import List, Any, Dict
 
 from celery import Celery, group
 
@@ -10,6 +12,7 @@ from config import (
     CELERY_BROKER_URL,
     CELERY_RESULT_BACKEND,
     DATABASE_PATH,
+    OUTPUT_FOLDER,
 )
 from image import blur_image
 from mail import send_email
@@ -113,12 +116,33 @@ def blur_image_task(self, src_filename: str, dst_filename: str, delay: float = 0
 
 
 @celery_app.task(bind=True, name="tasks.send_result_email")
-def send_result_email_task(self, order_id: str, receiver: str, archive_path: str):
+def send_result_email_task(
+    self,
+    order_id: str,
+    receiver: str,
+    archive_path: str,
+    results: List[Dict[str, Any]] = None,
+):
     """
     Задача отправки письма с архивом размытых изображений.
     Вызывает send_email из mail.py.
+
+    results - результаты задач blur_image_task (передаются автоматически из chord)
     """
-    send_email(order_id, receiver, archive_path)
+    # Создаём архив из результатов задач
+    output_paths = [Path(r["dst"]) for r in (results or []) if r and "dst" in r]
+
+    if output_paths:
+        archive_name = f"blurred_images_{order_id}.zip"
+        archive_path_obj = OUTPUT_FOLDER / archive_name
+
+        with zipfile.ZipFile(archive_path_obj, "w", zipfile.ZIP_DEFLATED) as zf:
+            for p in output_paths:
+                if p.exists():
+                    zf.write(p, arcname=p.name)
+
+        send_email(order_id, receiver, str(archive_path_obj))
+
     return {"order_id": order_id, "receiver": receiver, "status": "sent"}
 
 
@@ -159,23 +183,33 @@ def send_newsletter_task(self, email: str):
     return {"email": email, "status": "sent"}
 
 
-@celery_app.task(name="tasks.weekly_newsletter")
-def weekly_newsletter():
+@celery_app.task(bind=True, name="tasks.send_result_email")
+def send_result_email_task(
+        self,
+        results: List[Dict[str, Any]],
+        order_id: str,
+        receiver: str,
+        archive_path: str = "",
+):
     """
-    Периодическая задача: раз в неделю отправляет рассылку всем подписчикам.
+    Задача отправки письма с архивом размытых изображений.
+    results передаётся автоматически из chord как первый аргумент.
     """
-    subscribers = get_all_subscribers()
-    if not subscribers:
-        return {"sent_count": 0, "status": "no_subscribers"}
+    # Создаём архив из результатов задач
+    output_paths = [Path(r["dst"]) for r in (results or []) if r and "dst" in r]
 
-    tasks = [send_newsletter_task.s(email) for email in subscribers]
-    job = group(tasks).apply_async()
-    job.join()
+    if output_paths:
+        archive_name = f"blurred_images_{order_id}.zip"
+        archive_path_obj = OUTPUT_FOLDER / archive_name
 
-    return {
-        "sent_count": len(subscribers),
-        "status": "done",
-    }
+        with zipfile.ZipFile(archive_path_obj, "w", zipfile.ZIP_DEFLATED) as zf:
+            for p in output_paths:
+                if p.exists():
+                    zf.write(p, arcname=p.name)
+
+        send_email(order_id, receiver, str(archive_path_obj))
+
+    return {"order_id": order_id, "receiver": receiver, "status": "sent"}
 
 
 # Инициализация БД при импорте

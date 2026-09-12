@@ -9,6 +9,7 @@ from typing import Dict, List, Any
 from flask import Flask, request, jsonify
 from celery.result import GroupResult, AsyncResult
 from celery import group as celery_group
+from celery import chord
 
 from config import (
     UPLOAD_FOLDER,
@@ -85,44 +86,41 @@ def blur():
 
     input_paths = save_uploaded_files(files)
 
-    # ==================== ОТЛАДКА ====================
-    for p in input_paths:
-        print(f"Saved: {p}, size: {p.stat().st_size}")
-        try:
-            from PIL import Image
-            with Image.open(p) as img:
-                print(f"  Valid image: {img.format}, {img.size}")
-        except Exception as e:
-            print(f"  ERROR opening: {e}")
-            with open(p, "rb") as f:
-                header = f.read(20)
-                print(f"  Header bytes: {header.hex()}")
-    # ================================================
-
     output_paths = prepare_output_paths(input_paths)
 
+    # Создаём задачи размытия
     tasks = [
         blur_image_task.s(str(in_p), str(out_p))
         for in_p, out_p in zip(input_paths, output_paths)
     ]
-    job = celery_group(tasks).apply_async()
-    task_id = job.id
 
-    # Сохраняем ID отдельных задач для отслеживания прогресса
-    task_ids = [r.id for r in job.results]  # ИСПРАВЛЕНО: было job.tasks
-
+    # Генерируем order_id для архива
     order_id = str(uuid.uuid4())
 
-    task_metadata[task_id] = {
+    # Callback для отправки email (выполнится после завершения всех задач)
+    # Порядок аргументов: order_id, email, archive_path (results передаётся автоматически из chord)
+    callback = send_result_email_task.s(order_id, email, "")
+
+    # Формируем аккорд: header (группа задач) + callback
+    chord_result = chord(tasks)(callback)
+
+    # Сохраняем GroupResult для возможности отслеживания прогресса
+    tasks_group = chord_result.parent  # GroupResult по задачам размытия
+    tasks_group.save(backend=celery_app.backend)
+    group_id = tasks_group.id
+
+    # Сохраняем метаданные для endpoint /status
+    task_ids = [r.id for r in tasks_group.results]
+
+    task_metadata[group_id] = {
         "email": email,
         "order_id": order_id,
         "input_paths": input_paths,
         "output_paths": output_paths,
-        "email_sent": False,
         "task_ids": task_ids,
     }
 
-    return jsonify({"task_id": task_id}), 202
+    return jsonify({"task_id": group_id}), 202
 
 
 @app.route("/status/<task_id>", methods=["GET"])
@@ -152,19 +150,6 @@ def status(task_id: str):
         status_str = "PENDING"
     elif done == total:
         status_str = "DONE"
-
-        if not meta["email_sent"]:
-            email = meta["email"]
-            order_id = meta["order_id"]
-            output_paths = meta["output_paths"]
-
-            archive_name = f"blurred_images_{order_id}.zip"
-            archive_path = OUTPUT_FOLDER / archive_name
-            create_archive(output_paths, archive_path)
-
-            send_result_email_task.delay(order_id, email, str(archive_path))
-
-            meta["email_sent"] = True
     else:
         status_str = "IN_PROGRESS"
 
