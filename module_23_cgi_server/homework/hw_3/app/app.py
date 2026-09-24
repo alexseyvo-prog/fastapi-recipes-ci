@@ -20,5 +20,5 @@ def health():
 
 @app.route("/long_task")
 def long_task():
-    time.sleep(10)
+    time.sleep(300)
     return jsonify(message="We did it!")
