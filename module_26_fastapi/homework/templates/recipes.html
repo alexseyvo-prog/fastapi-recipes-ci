@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Кулинарная книга</title>
+</head>
+<body>
+    <h1>Список рецептов</h1>
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Количество просмотров</th>
+                <th>Время готовки, мин.</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for recipe in recipes %}
+            <tr>
+                <td>
+                    <a href="/recipes/{{ recipe.id }}/page">
+                        {{ recipe.title }}
+                    </a>
+                </td>
+                <td>{{ recipe.views }}</td>
+                <td>{{ recipe.cooking_time }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3">Рецептов пока нет.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

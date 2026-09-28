@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ recipe.title }}</title>
+</head>
+<body>
+    <p>
+        <a href="/">← К списку рецептов</a>
+    </p>
+
+    <h1>{{ recipe.title }}</h1>
+
+    <p>
+        <strong>Время готовки:</strong>
+        {{ recipe.cooking_time }} мин.
+    </p>
+
+    <h2>Ингредиенты</h2>
+    <ul>
+        {% for ingredient in ingredients %}
+        <li>{{ ingredient }}</li>
+        {% endfor %}
+    </ul>
+
+    <h2>Описание</h2>
+    <p>{{ recipe.description }}</p>
+</body>
+</html>
