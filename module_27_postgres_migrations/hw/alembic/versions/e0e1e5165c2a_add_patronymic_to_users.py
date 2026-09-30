@@ -1,7 +1,7 @@
 """add patronymic to users
 
 Revision ID: e0e1e5165c2a
-Revises: 7ee4545ec919
+Revises: b8e507bbb682
 Create Date: 2026-09-29 18:57:29.218000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'e0e1e5165c2a'
-down_revision: Union[str, None] = '7ee4545ec919'
+down_revision: Union[str, None] = 'b8e507bbb682'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

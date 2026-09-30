@@ -4,7 +4,7 @@ import random
 import requests
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Boolean, ForeignKey, Integer, String, func, select
+from sqlalchemy import ForeignKey, Integer, String, func, select
 from sqlalchemy.dialects.postgresql import ARRAY, JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -13,6 +13,7 @@ USERS_URL = "https://dummyjson.com/users?limit=10"
 COFFEE_URL = "https://dummyjson.com/products/search?q=coffee"
 
 REQUIRED_RECORDS_COUNT = 10
+SEED_LOCK_ID = 123
 
 
 class Base(DeclarativeBase):
@@ -52,8 +53,10 @@ class User(db.Model):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     surname: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    patronymic: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    # has_sale: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    patronymic: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
     address: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     coffee_id: Mapped[int | None] = mapped_column(
         ForeignKey("coffee.id"),
@@ -81,7 +84,8 @@ def user_to_dict(user: User) -> dict:
     return {
         "id": user.id,
         "name": user.name,
-        "has_sale": user.has_sale,
+        "surname": user.surname,
+        "patronymic": user.patronymic,
         "address": user.address,
         "coffee_id": user.coffee_id,
         "coffee": coffee_to_dict(user.coffee) if user.coffee else None,
@@ -89,12 +93,7 @@ def user_to_dict(user: User) -> dict:
 
 
 def load_coffees() -> list[Coffee]:
-    """
-    Получает товары по ссылке из задания и создаёт 10 записей кофе.
-
-    DummyJSON сейчас возвращает меньше 10 результатов по coffee, поэтому
-    найденные товары повторяются циклически с уникальным номером в title.
-    """
+    """Получает данные о кофе и создаёт ровно десять ORM-объектов."""
     response = requests.get(COFFEE_URL, timeout=20)
     response.raise_for_status()
 
@@ -114,11 +113,9 @@ def load_coffees() -> list[Coffee]:
             if review.get("comment")
         ]
 
-        title = f"{product['title']} #{index + 1}"
-
         coffees.append(
             Coffee(
-                title=title[:200],
+                title=f"{product['title']} #{index + 1}"[:200],
                 category=product.get("category"),
                 description=product.get("description"),
                 reviews=reviews or None,
@@ -129,7 +126,7 @@ def load_coffees() -> list[Coffee]:
 
 
 def load_users(coffees: list[Coffee]) -> list[User]:
-    """Получает десять пользователей и назначает им случайный кофе."""
+    """Получает десять пользователей и назначает каждому случайный кофе."""
     response = requests.get(USERS_URL, timeout=20)
     response.raise_for_status()
 
@@ -144,15 +141,10 @@ def load_users(coffees: list[Coffee]) -> list[User]:
     users: list[User] = []
 
     for api_user in api_users[:REQUIRED_RECORDS_COUNT]:
-        name = (
-            f"{api_user.get('firstName', '')} "
-            f"{api_user.get('lastName', '')}"
-        ).strip()
-
         users.append(
             User(
-                name=name[:50],
-                has_sale=random.choice([True, False]),
+                name=api_user.get("firstName", "")[:50],
+                surname=api_user.get("lastName", "")[:50] or None,
                 address=api_user.get("address"),
                 coffee=random.choice(coffees),
             )
@@ -162,31 +154,21 @@ def load_users(coffees: list[Coffee]) -> list[User]:
 
 
 def seed_database() -> None:
-    """
-    Гарантирует в БД ровно десять кофе и десять пользователей.
+    """Один раз заполняет полностью пустую БД десятью кофе и пользователями."""
+    with db.session.begin():
+        db.session.execute(func.pg_advisory_xact_lock(SEED_LOCK_ID))
 
-    При неверном количестве удаляет прежние записи и загружает новые.
-    """
-    coffee_count = db.session.query(Coffee).count()
-    user_count = db.session.query(User).count()
+        coffee_exists = db.session.query(Coffee.id).first() is not None
+        user_exists = db.session.query(User.id).first() is not None
 
-    if (
-        coffee_count == REQUIRED_RECORDS_COUNT
-        and user_count == REQUIRED_RECORDS_COUNT
-    ):
-        return
+        if coffee_exists or user_exists:
+            return
 
-    db.session.query(User).delete()
-    db.session.query(Coffee).delete()
-    db.session.commit()
+        coffees = load_coffees()
+        db.session.add_all(coffees)
+        db.session.flush()
 
-    coffees = load_coffees()
-    db.session.add_all(coffees)
-    db.session.flush()
-
-    users = load_users(coffees)
-    db.session.add_all(users)
-    db.session.commit()
+        db.session.add_all(load_users(coffees))
 
 
 def create_app() -> Flask:
@@ -194,8 +176,22 @@ def create_app() -> Flask:
 
     app.config["SQLALCHEMY_DATABASE_URI"] = os.environ["DATABASE_URL"]
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    app.config["DATABASE_SEEDED"] = False
 
     db.init_app(app)
+
+    @app.before_request
+    def seed_on_first_request():
+        if app.config["DATABASE_SEEDED"]:
+            return
+
+        try:
+            seed_database()
+        except Exception:
+            db.session.rollback()
+            raise
+        else:
+            app.config["DATABASE_SEEDED"] = True
 
     @app.get("/")
     def index():
@@ -207,23 +203,9 @@ def create_app() -> Flask:
 
     @app.post("/users")
     def create_user():
-        """
-        Создаёт пользователя.
-
-        Пример JSON-тела:
-        {
-            "name": "Иван Иванов",
-            "has_sale": true,
-            "address": {
-                "country": "Russia",
-                "city": "Moscow"
-            },
-            "coffee_id": 3
-        }
-        """
         data = request.get_json(silent=True) or {}
 
-        name = data.get("name")
+        name = data.get("name", "").strip()
         coffee_id = data.get("coffee_id")
 
         if not name:
@@ -239,7 +221,8 @@ def create_app() -> Flask:
 
         user = User(
             name=name[:50],
-            has_sale=data.get("has_sale"),
+            surname=(data.get("surname") or "")[:50] or None,
+            patronymic=(data.get("patronymic") or "")[:50] or None,
             address=data.get("address"),
             coffee=coffee,
         )
@@ -251,25 +234,13 @@ def create_app() -> Flask:
 
     @app.get("/coffees/search")
     def search_coffee():
-        """
-        Ищет кофе по title с помощью полнотекстового поиска PostgreSQL.
-
-        Пример:
-        GET /coffees/search?title=nescafe
-        """
         title = request.args.get("title", "").strip()
 
         if not title:
             return jsonify(error="Передайте параметр title."), 400
 
-        search_vector = func.to_tsvector(
-            "simple",
-            Coffee.title,
-        )
-        search_query = func.plainto_tsquery(
-            "simple",
-            title,
-        )
+        search_vector = func.to_tsvector("simple", Coffee.title)
+        search_query = func.plainto_tsquery("simple", title)
 
         coffees = db.session.scalars(
             select(Coffee)
@@ -284,9 +255,6 @@ def create_app() -> Flask:
 
     @app.get("/coffees/reviews")
     def unique_reviews():
-        """
-        Возвращает все уникальные элементы массивов coffee.reviews.
-        """
         review = func.unnest(Coffee.reviews).label("review")
 
         reviews = db.session.scalars(
@@ -303,13 +271,6 @@ def create_app() -> Flask:
 
     @app.get("/users/by-country")
     def users_by_country():
-        """
-        Возвращает пользователей, у которых address.country совпадает
-        с параметром country.
-
-        Пример:
-        GET /users/by-country?country=United%20States
-        """
         country = request.args.get("country", "").strip()
 
         if not country:
@@ -326,10 +287,6 @@ def create_app() -> Flask:
             count=len(users),
             users=[user_to_dict(user) for user in users],
         )
-
-    # with app.app_context():
-    #     # db.create_all()
-    #     seed_database()
 
     return app
 
