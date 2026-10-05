@@ -62,6 +62,11 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     db.init_app(app)
 
+    # Создаёт таблицы Client, Parking и ClientParking,
+    # если они ещё отсутствуют в используемой базе данных.
+    with app.app_context():
+        db.create_all()
+
     @app.get("/clients")
     def get_clients():
         clients = db.session.scalars(
@@ -75,6 +80,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.get("/clients/<int:client_id>")
     def get_client(client_id: int):
         client = db.get_or_404(Client, client_id)
+
         return jsonify(client_to_dict(client)), 200
 
     @app.post("/clients")
@@ -231,6 +237,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             db.session.commit()
         except IntegrityError:
             db.session.rollback()
+
             return jsonify(
                 error=(
                     "Для этого клиента уже существует запись "
@@ -288,3 +295,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         return jsonify(client_parking_to_dict(parking_log)), 200
 
     return app
+
+
+if __name__ == "__main__":
+    create_app().run(debug=True)

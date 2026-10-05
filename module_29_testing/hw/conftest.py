@@ -3,20 +3,23 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from app import create_app
-from models import Client, ClientParking, Parking, db
+from models import Client, ClientParking, Parking, db as _db
 
 
 @pytest.fixture()
 def app():
-    app = create_app(
+    """
+    Создаёт тестовое Flask-приложение и временную SQLite БД в памяти.
+    """
+    test_app = create_app(
         {
             "TESTING": True,
             "SQLALCHEMY_DATABASE_URI": "sqlite://",
         }
     )
 
-    with app.app_context():
-        db.create_all()
+    with test_app.app_context():
+        _db.create_all()
 
         test_client = Client(
             name="Иван",
@@ -46,13 +49,15 @@ def app():
             count_available_places=5,
         )
 
-        db.session.add_all([
-            test_client,
-            test_parking,
-            log_client,
-            log_parking,
-        ])
-        db.session.commit()
+        _db.session.add_all(
+            [
+                test_client,
+                test_parking,
+                log_client,
+                log_parking,
+            ]
+        )
+        _db.session.commit()
 
         parking_log = ClientParking(
             client_id=log_client.id,
@@ -61,21 +66,29 @@ def app():
             time_out=datetime.now(UTC),
         )
 
-        db.session.add(parking_log)
-        db.session.commit()
+        _db.session.add(parking_log)
+        _db.session.commit()
 
-        yield app
+    yield test_app
 
-        db.session.remove()
-        db.drop_all()
+    with test_app.app_context():
+        _db.session.remove()
+        _db.drop_all()
 
 
 @pytest.fixture()
 def client(app):
+    """
+    Возвращает тестовый HTTP-клиент Flask.
+    """
     return app.test_client()
 
 
 @pytest.fixture()
 def database(app):
+    """
+    Передаёт объект SQLAlchemy db в тест и поддерживает
+    активный application context на протяжении теста.
+    """
     with app.app_context():
-        yield db
+        yield _db

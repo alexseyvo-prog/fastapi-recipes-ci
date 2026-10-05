@@ -3,7 +3,7 @@ from datetime import datetime
 import pytest
 
 from factories import ClientFactory, ParkingFactory
-from models import Client, ClientParking, Parking, db
+from models import Client, ClientParking, Parking
 
 
 @pytest.mark.parametrize(
@@ -14,25 +14,14 @@ from models import Client, ClientParking, Parking, db
     ],
 )
 def test_get_methods_return_200(client, url):
-    """
-    Проверяет, что GET-запросы к API возвращают HTTP 200.
-
-    Тест запускается дважды:
-    - для получения всех клиентов;
-    - для получения клиента с id=1.
-    """
+    """Проверяет, что GET-методы API возвращают HTTP 200."""
     response = client.get(url)
 
     assert response.status_code == 200
 
 
-def test_create_client(client, app):
-    """
-    Проверяет создание нового клиента через POST /clients.
-
-    Проверяются код ответа, содержимое JSON-ответа
-    и наличие созданной записи в тестовой базе данных.
-    """
+def test_create_client(client, database):
+    """Проверяет создание и сохранение клиента через POST /clients."""
     payload = {
         "name": "Пётр",
         "surname": "Петров",
@@ -52,23 +41,17 @@ def test_create_client(client, app):
     assert data["credit_card"] == payload["credit_card"]
     assert data["car_number"] == payload["car_number"]
 
-    with app.app_context():
-        created_client = db.session.get(Client, data["id"])
+    created_client = database.session.get(Client, data["id"])
 
-        assert created_client is not None
-        assert created_client.name == payload["name"]
-        assert created_client.surname == payload["surname"]
-        assert created_client.credit_card == payload["credit_card"]
-        assert created_client.car_number == payload["car_number"]
+    assert created_client is not None
+    assert created_client.name == payload["name"]
+    assert created_client.surname == payload["surname"]
+    assert created_client.credit_card == payload["credit_card"]
+    assert created_client.car_number == payload["car_number"]
 
 
-def test_create_parking(client, app):
-    """
-    Проверяет создание новой парковки через POST /parkings.
-
-    Проверяются код ответа, данные парковки в JSON
-    и сохранение парковки в базе данных.
-    """
+def test_create_parking(client, database):
+    """Проверяет создание и сохранение парковки через POST /parkings."""
     payload = {
         "address": "Санкт-Петербург, Невский проспект, 10",
         "opened": True,
@@ -91,42 +74,31 @@ def test_create_parking(client, app):
         == payload["count_available_places"]
     )
 
-    with app.app_context():
-        created_parking = db.session.get(Parking, data["id"])
+    created_parking = database.session.get(Parking, data["id"])
 
-        assert created_parking is not None
-        assert created_parking.address == payload["address"]
-        assert created_parking.opened == payload["opened"]
-        assert created_parking.count_places == payload["count_places"]
-        assert (
-            created_parking.count_available_places
-            == payload["count_available_places"]
-        )
+    assert created_parking is not None
+    assert created_parking.address == payload["address"]
+    assert created_parking.opened == payload["opened"]
+    assert created_parking.count_places == payload["count_places"]
+    assert (
+        created_parking.count_available_places
+        == payload["count_available_places"]
+    )
 
 
 @pytest.mark.parking
-def test_enter_parking(client, app):
-    """
-    Проверяет заезд клиента на парковку.
-
-    До запроса проверяется, что парковка открыта и имеет свободные места.
-    После запроса проверяется создание записи ClientParking и уменьшение
-    количества свободных мест на одно.
-    """
+def test_enter_parking(client, database):
+    """Проверяет успешный заезд клиента и уменьшение числа свободных мест."""
     payload = {
         "client_id": 1,
         "parking_id": 1,
     }
 
-    with app.app_context():
-        parking_before = db.session.get(Parking, 1)
+    parking_before = database.session.get(Parking, payload["parking_id"])
 
-        assert parking_before is not None
-        assert parking_before.opened is True
+    assert parking_before is not None
 
-        available_places_before = parking_before.count_available_places
-
-        assert available_places_before > 0
+    available_places_before = parking_before.count_available_places
 
     response = client.post("/client_parkings", json=payload)
 
@@ -140,31 +112,23 @@ def test_enter_parking(client, app):
     assert data["time_in"] is not None
     assert data["time_out"] is None
 
-    with app.app_context():
-        parking_after = db.session.get(Parking, 1)
-        parking_log = db.session.get(ClientParking, data["id"])
+    parking_after = database.session.get(Parking, payload["parking_id"])
+    parking_log = database.session.get(ClientParking, data["id"])
 
-        assert (
-            parking_after.count_available_places
-            == available_places_before - 1
-        )
-
-        assert parking_log is not None
-        assert parking_log.client_id == payload["client_id"]
-        assert parking_log.parking_id == payload["parking_id"]
-        assert parking_log.time_in is not None
-        assert parking_log.time_out is None
+    assert (
+        parking_after.count_available_places
+        == available_places_before - 1
+    )
+    assert parking_log is not None
+    assert parking_log.client_id == payload["client_id"]
+    assert parking_log.parking_id == payload["parking_id"]
+    assert parking_log.time_in is not None
+    assert parking_log.time_out is None
 
 
 @pytest.mark.parking
-def test_leave_parking(client, app):
-    """
-    Проверяет выезд клиента с парковки.
-
-    Сначала выполняется въезд, затем DELETE-запрос на выезд.
-    Проверяются наличие карты у клиента, заполнение time_out,
-    корректная последовательность времени и увеличение свободных мест.
-    """
+def test_leave_parking(client, database):
+    """Проверяет успешный выезд, заполнение time_out и возврат места."""
     payload = {
         "client_id": 1,
         "parking_id": 1,
@@ -176,15 +140,8 @@ def test_leave_parking(client, app):
 
     parking_log_id = enter_response.get_json()["id"]
 
-    with app.app_context():
-        parking_before = db.session.get(Parking, 1)
-        test_client = db.session.get(Client, 1)
-
-        assert parking_before is not None
-        assert test_client is not None
-        assert test_client.credit_card is not None
-
-        available_places_before = parking_before.count_available_places
+    parking_before = database.session.get(Parking, payload["parking_id"])
+    available_places_before = parking_before.count_available_places
 
     response = client.delete("/client_parkings", json=payload)
 
@@ -201,108 +158,179 @@ def test_leave_parking(client, app):
 
     assert time_out >= time_in
 
-    with app.app_context():
-        parking_after = db.session.get(Parking, 1)
-        parking_log = db.session.get(ClientParking, parking_log_id)
+    parking_after = database.session.get(Parking, payload["parking_id"])
+    parking_log = database.session.get(ClientParking, parking_log_id)
 
-        assert (
-            parking_after.count_available_places
-            == available_places_before + 1
-        )
-
-        assert parking_log is not None
-        assert parking_log.time_in is not None
-        assert parking_log.time_out is not None
-        assert parking_log.time_out >= parking_log.time_in
-
-
-def test_create_client_with_factory(client, app):
-    """
-    Проверяет создание клиента с данными из ClientFactory.
-
-    ClientFactory.build() генерирует случайные данные, но не сохраняет
-    объект в БД. API самостоятельно создаёт клиента через POST /clients.
-    """
-    factory_client = ClientFactory.build()
-
-    payload = {
-        "name": factory_client.name,
-        "surname": factory_client.surname,
-        "credit_card": factory_client.credit_card,
-        "car_number": factory_client.car_number,
-    }
-
-    with app.app_context():
-        clients_before = db.session.query(Client).count()
-
-    response = client.post("/clients", json=payload)
-
-    assert response.status_code == 201
-
-    data = response.get_json()
-
-    assert data["id"] is not None
-    assert data["name"] == payload["name"]
-    assert data["surname"] == payload["surname"]
-    assert data["credit_card"] == payload["credit_card"]
-    assert data["car_number"] == payload["car_number"]
-
-    with app.app_context():
-        clients_after = db.session.query(Client).count()
-        created_client = db.session.get(Client, data["id"])
-
-        assert clients_after == clients_before + 1
-        assert created_client is not None
-        assert created_client.name == payload["name"]
-        assert created_client.surname == payload["surname"]
-        assert created_client.credit_card == payload["credit_card"]
-        assert created_client.car_number == payload["car_number"]
-
-
-def test_create_parking_with_factory(client, app):
-    """
-    Проверяет создание парковки с данными из ParkingFactory.
-
-    LazyAttribute в фабрике гарантирует, что число свободных мест
-    не превышает общее число мест на парковке.
-    """
-    factory_parking = ParkingFactory.build()
-
-    payload = {
-        "address": factory_parking.address,
-        "opened": factory_parking.opened,
-        "count_places": factory_parking.count_places,
-        "count_available_places": factory_parking.count_available_places,
-    }
-
-    with app.app_context():
-        parkings_before = db.session.query(Parking).count()
-
-    response = client.post("/parkings", json=payload)
-
-    assert response.status_code == 201
-
-    data = response.get_json()
-
-    assert data["id"] is not None
-    assert data["address"] == payload["address"]
-    assert data["opened"] == payload["opened"]
-    assert data["count_places"] == payload["count_places"]
     assert (
-        data["count_available_places"]
-        == payload["count_available_places"]
+        parking_after.count_available_places
+        == available_places_before + 1
+    )
+    assert parking_log is not None
+    assert parking_log.time_in is not None
+    assert parking_log.time_out is not None
+    assert parking_log.time_out >= parking_log.time_in
+
+
+def test_create_client_with_factory(database):
+    """Проверяет создание и сохранение клиента через ClientFactory."""
+    clients_before = database.session.query(Client).count()
+
+    new_client = ClientFactory()
+
+    assert new_client.id is not None
+    assert database.session.query(Client).count() == clients_before + 1
+
+
+def test_create_parking_with_factory(database):
+    """Проверяет создание и сохранение парковки через ParkingFactory."""
+    parkings_before = database.session.query(Parking).count()
+
+    new_parking = ParkingFactory()
+
+    assert new_parking.id is not None
+    assert new_parking.count_available_places <= new_parking.count_places
+    assert database.session.query(Parking).count() == parkings_before + 1
+
+
+@pytest.mark.parking
+def test_enter_closed_parking(client, database):
+    """Проверяет запрет въезда на закрытую парковку."""
+    parking = ParkingFactory(
+        opened=False,
+        count_places=5,
+        count_available_places=5,
+    )
+    new_client = ClientFactory()
+
+    response = client.post(
+        "/client_parkings",
+        json={
+            "client_id": new_client.id,
+            "parking_id": parking.id,
+        },
     )
 
-    with app.app_context():
-        parkings_after = db.session.query(Parking).count()
-        created_parking = db.session.get(Parking, data["id"])
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Парковка закрыта."
 
-        assert parkings_after == parkings_before + 1
-        assert created_parking is not None
-        assert created_parking.address == payload["address"]
-        assert created_parking.opened == payload["opened"]
-        assert created_parking.count_places == payload["count_places"]
-        assert (
-            created_parking.count_available_places
-            == payload["count_available_places"]
+    parking_after = database.session.get(Parking, parking.id)
+
+    assert parking_after.count_available_places == 5
+
+    parking_log = database.session.scalar(
+        database.select(ClientParking).where(
+            ClientParking.client_id == new_client.id,
+            ClientParking.parking_id == parking.id,
         )
+    )
+
+    assert parking_log is None
+
+
+@pytest.mark.parking
+def test_enter_full_parking(client, database):
+    """Проверяет запрет въезда на парковку без свободных мест."""
+    parking = ParkingFactory(
+        opened=True,
+        count_places=5,
+        count_available_places=0,
+    )
+    new_client = ClientFactory()
+
+    response = client.post(
+        "/client_parkings",
+        json={
+            "client_id": new_client.id,
+            "parking_id": parking.id,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Нет свободных мест."
+
+    parking_after = database.session.get(Parking, parking.id)
+
+    assert parking_after.count_available_places == 0
+
+    parking_log = database.session.scalar(
+        database.select(ClientParking).where(
+            ClientParking.client_id == new_client.id,
+            ClientParking.parking_id == parking.id,
+        )
+    )
+
+    assert parking_log is None
+
+
+@pytest.mark.parking
+def test_leave_parking_without_credit_card(client, database):
+    """Проверяет запрет выезда, если у клиента нет привязанной карты."""
+    parking = ParkingFactory(
+        opened=True,
+        count_places=5,
+        count_available_places=5,
+    )
+    new_client = ClientFactory(credit_card=None)
+
+    enter_response = client.post(
+        "/client_parkings",
+        json={
+            "client_id": new_client.id,
+            "parking_id": parking.id,
+        },
+    )
+
+    assert enter_response.status_code == 201
+
+    parking_log_id = enter_response.get_json()["id"]
+
+    response = client.delete(
+        "/client_parkings",
+        json={
+            "client_id": new_client.id,
+            "parking_id": parking.id,
+        },
+    )
+
+    assert response.status_code == 400
+    assert (
+        response.get_json()["error"]
+        == "Нельзя произвести оплату: карта не привязана."
+    )
+
+    parking_log = database.session.get(ClientParking, parking_log_id)
+    parking_after = database.session.get(Parking, parking.id)
+
+    assert parking_log.time_out is None
+    assert parking_after.count_available_places == 4
+
+
+@pytest.mark.parking
+def test_leave_parking_without_entering(client, database):
+    """Проверяет, что нельзя выехать без активного заезда."""
+    parking = ParkingFactory(
+        opened=True,
+        count_places=5,
+        count_available_places=5,
+    )
+    new_client = ClientFactory(
+        credit_card="5555 5555 5555 5555",
+    )
+
+    response = client.delete(
+        "/client_parkings",
+        json={
+            "client_id": new_client.id,
+            "parking_id": parking.id,
+        },
+    )
+
+    assert response.status_code == 404
+    assert (
+        response.get_json()["error"]
+        == "Активный въезд клиента на эту парковку не найден."
+    )
+
+    parking_after = database.session.get(Parking, parking.id)
+
+    assert parking_after.count_available_places == 5

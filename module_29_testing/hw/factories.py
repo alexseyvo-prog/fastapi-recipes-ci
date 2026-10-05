@@ -12,7 +12,7 @@ fake = Faker("ru_RU")
 
 class ClientFactory(SQLAlchemyModelFactory):
     """
-    Создаёт тестовых клиентов с автоматически сгенерированными данными.
+    Создаёт и сохраняет тестовых клиентов в тестовой БД.
     """
 
     class Meta:
@@ -23,7 +23,7 @@ class ClientFactory(SQLAlchemyModelFactory):
     name = factory.Faker("first_name", locale="ru_RU")
     surname = factory.Faker("last_name", locale="ru_RU")
 
-    # У клиента может быть карта или её может не быть.
+    # У клиента случайным образом может быть карта или не быть карты.
     credit_card = factory.LazyFunction(
         lambda: random.choice([None, fake.credit_card_number()])
     )
@@ -33,7 +33,7 @@ class ClientFactory(SQLAlchemyModelFactory):
 
 class ParkingFactory(SQLAlchemyModelFactory):
     """
-    Создаёт тестовые парковки со случайными параметрами.
+    Создаёт и сохраняет тестовые парковки в тестовой БД.
     """
 
     class Meta:
@@ -43,11 +43,9 @@ class ParkingFactory(SQLAlchemyModelFactory):
 
     address = factory.Faker("address", locale="ru_RU")
     opened = factory.Faker("pybool")
-
-    # Количество мест генерируется в диапазоне от 1 до 100.
     count_places = factory.Faker("random_int", min=1, max=100)
 
-    # Свободных мест всегда от 0 до общего количества мест.
+    # Значение зависит от count_places и не может быть больше него.
     count_available_places = factory.LazyAttribute(
         lambda parking: random.randint(0, parking.count_places)
     )
