@@ -1,4 +1,0 @@
-Traceback (most recent call last):
-  File "C:\Users\Администратор\Desktop\PY\M3\python_advanced\module_05_processes_and_threads\homework\hw4\check_redirect.py", line 10, in <module>
-    raise Exception("Hello stderr.txt")
-Exception: Hello stderr.txt
