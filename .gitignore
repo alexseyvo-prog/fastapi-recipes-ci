@@ -126,16 +126,22 @@ celerybeat.pid
 # MkDocs
 /site/
 
-# Project and local files
+# Local tools and settings
 .proxyai/
+.pre-commit-config.yaml.local
+
+# Local databases
 *.db
 *.sqlite
 *.sqlite3
 
-# Keep the required homework database tracked
+# Keep the homework database in Git
+!module_30_ci_linters/
+!module_30_ci_linters/homework/
+!module_30_ci_linters/homework/hw1/
 !module_30_ci_linters/homework/hw1/recipes.db
 
-# Local homework database that should not be uploaded
+# Explicitly ignore another local database
 module_26_fastapi/homework/recipes.db
 
 # Local logs and temporary files
@@ -149,5 +155,26 @@ module_26_fastapi/homework/recipes.db
 Thumbs.db
 desktop.ini
 
-# Local Python tools
-.pre-commit-config.yaml.local
+# Local course modules
+module_01_flask/
+module_03_ci_culture_beginning/
+module_04_flask/
+module_05_processes_and_threads/
+module_07_logging_part_2/
+module_08_deploy/
+module_09_docker/
+module_11_multitasking/
+module_12_multitasking_2/
+module_14_mvc/
+module_15_networking_basics/
+module_16_db3/
+module_17_rest_api/
+module_19_db4/
+module_20_orm_1/
+module_21_orm_2/
+module_22_celery/
+module_23_cgi_server/
+module_25_asynchronous_programming/
+module_26_fastapi/
+module_27_postgres_migrations/
+module_29_testing/
