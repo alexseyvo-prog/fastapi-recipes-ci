@@ -138,4 +138,6 @@ dmypy.json
 # the rest
 .swp
 
-prettifier.py
+prettifier.py.proxyai/
+module_26_fastapi/homework/recipes.db
+.proxyai/
