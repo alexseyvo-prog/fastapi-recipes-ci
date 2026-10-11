@@ -5,6 +5,7 @@ aiosqlite
 pydantic
 pytest
 httpx
+Jinja2
 
 black
 isort
